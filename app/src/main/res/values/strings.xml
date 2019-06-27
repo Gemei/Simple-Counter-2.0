@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">Simple Counter</string>
+    <string name="count_text">0</string>
+    <string name="menu_settings">Help!</string>
+    <string name="menu_reset">Reset Counter</string>
+    <string name="menu_LValue">Show previous value</string>
+    <string name="menu_sAwake">Stay Awake</string>
+    <string name="menu_darkMode">Dark Mode</string>
+    <string name="menu_switchToTimer">Switch to timer</string>
+</resources>
