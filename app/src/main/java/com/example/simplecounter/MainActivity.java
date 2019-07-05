@@ -4,8 +4,10 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.DialogInterface.OnClickListener;
 import android.content.Intent;
-import android.content.SharedPreferences;
-import android.media.MediaPlayer;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.SystemClock;
@@ -23,19 +25,28 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.app.AppCompatDelegate;
 
-public class MainActivity extends AppCompatActivity implements GestureDetector.OnGestureListener,GestureDetector.OnDoubleTapListener{
+public class MainActivity extends AppCompatActivity implements GestureDetector.OnGestureListener,GestureDetector.OnDoubleTapListener, SensorEventListener {
 	private int screenFlag;
 
     GestureDetector gestureDetector;
 
-	private boolean isTimerEnabled, isTimerRunning;
+	private boolean isTimerEnabled, isTimerRunning, isProximityEnabled;
 	private long MillisecondTime, StartTime, TimeBuff, UpdateTime = 0L ;
 	private Handler timerHandler;
 	private int Seconds, Minutes, MilliSeconds ;
 
+	private SensorManager sensorManager;
+	private Sensor proximitySensor;
+
+	private Storage storage;
+	private Sound sound;
+
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
-        if(getCheckBoxValue("darkMoodPrefName","darkMode")){
+		storage = new Storage(this);
+		sound = new Sound(this);
+
+		if(storage.getCheckBoxValue("darkMoodPrefName","darkMode")){
 			setTheme(R.style.DarkTheme);
             AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
 		}
@@ -60,9 +71,14 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 
 	@Override
 	public boolean onPrepareOptionsMenu(Menu menu) {
-		menu.findItem(R.id.menu_stayAwake).setChecked(getCheckBoxValue("screenLockPrefName","screenLock"));
-		menu.findItem(R.id.menu_darkMode).setChecked(getCheckBoxValue("darkMoodPrefName","darkMode"));
-		//menu.findItem(R.id.menu_switchToTimer).setChecked(getCheckBoxValue("switchMoodPrefName","switchMood"));
+		menu.findItem(R.id.menu_stayAwake).setChecked(storage.getCheckBoxValue("screenLockPrefName","screenLock"));
+		menu.findItem(R.id.menu_darkMode).setChecked(storage.getCheckBoxValue("darkMoodPrefName","darkMode"));
+		if(!isProximityEnabled){
+			menu.findItem(R.id.menu_switchToProximity).setChecked(false);
+		}
+		if(!isTimerEnabled){
+			menu.findItem(R.id.menu_switchToTimer).setChecked(false);
+		}
 
 		return super.onPrepareOptionsMenu(menu);
 	}
@@ -74,14 +90,14 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 			//If reset count item selected do that
 			case R.id.menu_resetButton:
 				//go to resetCounter method
-				savePreResetValue(getCounterValue());//Get the last counter value right before reseting it
+				storage.savePreResetValue(storage.getCounterValue());//Get the last counter value right before reseting it
 				resetCounter();
-				playResetClick();
+				sound.playResetClick();
 				return true;
 			//If reset count item selected do that
 			case R.id.menu_lastValue:
 				//go to send the value of last count to sandValue method
-				showValue(getPreResetValue());
+				showValue(storage.getPreResetValue());
 				return true;
 			//If help item selected do that
 			case R.id.menu_settings:
@@ -101,17 +117,28 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 					switchToTimerMood();
 				}
 				return true;
+			case R.id.menu_switchToProximity:
+				//Screen Wake Lock CheckBox
+				if (item.isChecked()) {
+					item.setChecked(false);
+					switchToCounterMood();
+
+				} else {
+					item.setChecked(true);
+					switchToProximityMood();
+				}
+				return true;
 			case R.id.menu_stayAwake:
 				//Screen Wake Lock CheckBox
 				if (item.isChecked()) {
 					item.setChecked(false);
-					saveCheckBoxValue("screenLockPrefName",false, "screenLock");
+					storage.saveCheckBoxValue("screenLockPrefName",false, "screenLock");
 					if(checkScreenLock()){
 						setScreenLock();
 					}
 				} else {
 					item.setChecked(true);
-					saveCheckBoxValue("screenLockPrefName",true, "screenLock");
+					storage.saveCheckBoxValue("screenLockPrefName",true, "screenLock");
 					if(!checkScreenLock()){
 						clearScreenLock();
 					}
@@ -121,12 +148,12 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 				//Screen Wake Lock CheckBox
 				if (item.isChecked()) {
 					item.setChecked(false);
-					saveCheckBoxValue("darkMoodPrefName", false, "darkMode");
+					storage.saveCheckBoxValue("darkMoodPrefName", false, "darkMode");
 					AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO);
 					restartApp();
 				} else {
 					item.setChecked(true);
-					saveCheckBoxValue("darkMoodPrefName",true, "darkMode");
+					storage.saveCheckBoxValue("darkMoodPrefName",true, "darkMode");
 					AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES);
 					restartApp();
 				}
@@ -157,6 +184,44 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 			return true;
 		}
 		return false;
+	}
+
+	private void countUp(){
+		//play up click sound
+		sound.playUpClick();
+
+		//Get text view from the xml file
+		TextView countView = findViewById(R.id.text_count);
+
+		//Get the text from the text view file in the xml and convert it to string
+		String toString = countView.getText().toString();
+		//Converting the String value to int value
+		int toInt = Integer.parseInt(toString);
+		toInt++;
+		//Converting int value to String value to add to the text view
+		toString = String.valueOf(toInt);
+		countView.setText(toString);//text views only take string values
+
+		storage.saveCounterValue(toInt);//call saveCounter method and give the value toInt
+	}
+
+	private void countDown(){
+		//play down click sound
+		sound.playDownClick();
+
+		//Get text view from the xml file
+		TextView countView = findViewById(R.id.text_count);
+
+		//Get the text from the text view file in the xml and convert it to string
+		String toString = countView.getText().toString();
+		//Converting the String value to int value
+		int toInt = Integer.parseInt(toString);
+		toInt--;
+		//Converting int value to String value to add to the text view
+		toString = String.valueOf(toInt);
+		countView.setText(toString);//text views only take string values
+
+		storage.saveCounterValue(toInt);//call saveCounter method and give the value toInt
 	}
 
 	private void showHelp() {
@@ -208,133 +273,17 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 		lastValueDialog.show();
 	}
 
-	@Override
-	public boolean onTouchEvent(MotionEvent event){
-		this.gestureDetector.onTouchEvent(event);
-		// Be sure to call the superclass implementation
-		return super.onTouchEvent(event);
+	private void switchToCounterMood(){
+		turnOffProximity();
+		turnOffTimer();
+		TextView counter = findViewById(R.id.text_count);
+		counter.setText(String.valueOf(storage.getCounterValue()));
 	}
-
-	@Override
-	public boolean onDown(MotionEvent motionEvent) {
-		return false;
-	}
-
-	@Override
-	public void onShowPress(MotionEvent motionEvent) {
-
-	}
-
-	@Override
-	public boolean onSingleTapUp(MotionEvent event) {
-		if(!isTimerRunning && isTimerEnabled){
-			StartTime = SystemClock.uptimeMillis();
-            timerHandler.postDelayed(runnable, 0);
-			isTimerRunning=true;
-		}
-		return true;
-	}
-
-	@Override
-	public boolean onScroll(MotionEvent motionEvent, MotionEvent motionEvent1, float v, float v1) {
-		return false;
-	}
-
-	@Override
-	public void onLongPress(MotionEvent motionEvent) {
-		if(!isTimerRunning && isTimerEnabled){
-			switchToTimerMood();
-			Toast.makeText(getApplicationContext(),"Timer restarted",Toast.LENGTH_SHORT).show();
-		}
-	}
-
-	@Override
-	public boolean onFling(MotionEvent motionEvent, MotionEvent motionEvent1, float v, float v1) {
-		return false;
-	}
-
-	@Override
-	public boolean onSingleTapConfirmed(MotionEvent motionEvent) {
-		return false;
-	}
-
-	@Override
-	public boolean onDoubleTap(MotionEvent event) {
-		if(isTimerRunning && isTimerEnabled) {
-			TimeBuff += MillisecondTime;
-            timerHandler.removeCallbacks(runnable);
-			isTimerRunning=false;
-			Toast.makeText(getApplicationContext(),"Paused",Toast.LENGTH_SHORT).show();
-		}
-		return true;
-	}
-
-	@Override
-	public boolean onDoubleTapEvent(MotionEvent motionEvent) {
-		return false;
-	}
-
-
-	//Trace the volume buttons actions
-	@Override
-	public boolean dispatchKeyEvent(KeyEvent event) {
-		int action = event.getAction();
-		int keyCode = event.getKeyCode();
-
-		switch (keyCode) {
-			//When clicking the upper volume button
-			case KeyEvent.KEYCODE_VOLUME_UP:
-				if (action == KeyEvent.ACTION_UP && !isTimerEnabled) {
-
-					//play up click sound
-					playUpClick();
-
-					//Get text view from the xml file
-					TextView countView = findViewById(R.id.text_count);
-
-					//Get the text from the text view file in the xml and convert it to string
-					String toString = countView.getText().toString();
-					//Converting the String value to int value
-					int toInt = Integer.parseInt(toString);
-					toInt++;
-					//Converting int value to String value to add to the text view
-					toString = String.valueOf(toInt);
-					countView.setText(toString);//text views only take string values
-
-					saveCounterValue(toInt);//call saveCounter method and give the value toInt
-				}
-				return true;
-
-			//When clicking the down volume button
-			case KeyEvent.KEYCODE_VOLUME_DOWN:
-				if (action == KeyEvent.ACTION_DOWN && !isTimerEnabled) {
-					//play down click sound
-					playDownClick();
-
-					//Get text view from the xml file
-					TextView countView = findViewById(R.id.text_count);
-
-					//Get the text from the text view file in the xml and convert it to string
-					String toString = countView.getText().toString();
-					//Converting the String value to int value
-					int toInt = Integer.parseInt(toString);
-					toInt--;
-					//Converting int value to String value to add to the text view
-					toString = String.valueOf(toInt);
-					countView.setText(toString);//text views only take string values
-
-					saveCounterValue(toInt);//call saveCounter method and give the value toInt
-				}
-				return true;
-
-			default:
-				return super.dispatchKeyEvent(event);//Releasing volume buttons
-		}
-	}
-
 
 	//Switch to clock timer mood
 	private void switchToTimerMood(){
+		turnOffProximity();
+
 		TextView timer = findViewById(R.id.text_count);
 
 		MillisecondTime = 0L ;
@@ -350,14 +299,30 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 		isTimerEnabled=true;
 	}
 
-	private void switchToCounterMood(){
+	private void switchToProximityMood(){
+		turnOffTimer();
 
+		sensorManager = (SensorManager) getSystemService(this.SENSOR_SERVICE);
+		proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
+		sensorManager.registerListener(this, proximitySensor, SensorManager.SENSOR_DELAY_NORMAL);
+
+        TextView counter = findViewById(R.id.text_count);
+        counter.setText(String.valueOf(storage.getCounterValue()));
+
+		isProximityEnabled = true;
+	}
+
+	private void turnOffTimer(){
 		timerHandler.removeCallbacks(runnable);
-		TextView counter = findViewById(R.id.text_count);
-
-		counter.setText(String.valueOf(getCounterValue()));
-
 		isTimerEnabled=false;
+	}
+
+	private void turnOffProximity(){
+
+		if(isProximityEnabled){
+			sensorManager.unregisterListener(this);
+		}
+		isProximityEnabled=false;
 	}
 
 	public Runnable runnable = new Runnable() {
@@ -388,89 +353,89 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 		if(!isTimerEnabled){
 			//Set counter value to 0
 			countView.setText("0");
-			saveCounterValue(0);//call saveCounter method and give the value 0
+			storage.saveCounterValue(0);//call saveCounter method and give the value 0
 		} else {
 			switchToTimerMood();
 		}
 	}
 
-	//up click sound method
-	private void playUpClick() {
-		final MediaPlayer upClickSound = MediaPlayer.create(this, R.raw.upclick);
-		upClickSound.start();
-    }
 
-	//down click sound method
-	private void playDownClick() {
-		final MediaPlayer downClickSound = MediaPlayer.create(this, R.raw.downclick);
-		downClickSound.start();
-    }
-
-	//reset click sound method
-	private void playResetClick() {
-		final MediaPlayer resetCounterSound = MediaPlayer.create(this, R.raw.reset);
-		resetCounterSound.start();
+	@Override
+	public void onSensorChanged(SensorEvent sensorEvent) {
+		int proximityThreshold = 0;
+		if (sensorEvent.values[0] >= 500) {
+			proximityThreshold = 16;
+		} else if (sensorEvent.values[0] >= 95) {
+			proximityThreshold = 11;
+		} else if (sensorEvent.values[0] <= 10) {
+			proximityThreshold = 3;
+		}
+		if (sensorEvent.values[0] <= proximityThreshold) {
+			countUp();
+		}
 	}
 
-	//method to save counter value
-	private void saveCounterValue(int value) {
-		//Saving the counter value from the shared preferences
-		SharedPreferences myPrefs = getSharedPreferences("counterValue", MODE_PRIVATE);
-		//Make editor object to write to the shared preferences
-		SharedPreferences.Editor editor = myPrefs.edit();
-		//Saving the counter value under the name of "savedCounterValue"
-		editor.putInt("savedCounterValue", value);
-		//Commit the action and save the value
-		editor.commit();
+	@Override
+	public boolean onTouchEvent(MotionEvent event){
+		this.gestureDetector.onTouchEvent(event);
+		// Be sure to call the superclass implementation
+		return super.onTouchEvent(event);
 	}
 
-	//method to get counter saved value
-	private int getCounterValue() {
-		//Retrieving the counter value from the shared preferences
-		SharedPreferences myPrefs = getSharedPreferences("counterValue", MODE_PRIVATE);
-		int intCountrValue = myPrefs.getInt("savedCounterValue", 0);
-		return intCountrValue;
+	@Override
+	public boolean onSingleTapUp(MotionEvent event) {
+		if(!isTimerRunning && isTimerEnabled){
+			StartTime = SystemClock.uptimeMillis();
+			timerHandler.postDelayed(runnable, 0);
+			isTimerRunning=true;
+		}
+		return true;
 	}
 
-	//Method to save the last counter value before reset
-	private void savePreResetValue(int value) {
-		//Saving the counter value from the shared preferences
-		SharedPreferences myPrefs = getSharedPreferences("preResetValue", MODE_PRIVATE);
-		//Make editor object to write to the shared preferences
-		SharedPreferences.Editor editor = myPrefs.edit();
-		//Saving the counter value under the name of "preResetValue"
-		editor.putInt("preResetValue", value);
-		//Commit the action and save the value
-		editor.commit();
+	@Override
+	public boolean onDoubleTap(MotionEvent event) {
+		if(isTimerRunning && isTimerEnabled) {
+			TimeBuff += MillisecondTime;
+			timerHandler.removeCallbacks(runnable);
+			isTimerRunning=false;
+			Toast.makeText(getApplicationContext(),"Paused",Toast.LENGTH_SHORT).show();
+		}
+		return true;
 	}
 
-	//Method to get the last counter value before reset
-	private int getPreResetValue() {
-		//Retrieving the counter value from the shared preferences
-		SharedPreferences myPrefs = getSharedPreferences("preResetValue", MODE_PRIVATE);
-		int intCountrValue = myPrefs.getInt("preResetValue", 0);
-		return intCountrValue;
+	@Override
+	public void onLongPress(MotionEvent motionEvent) {
+		if(!isTimerRunning && isTimerEnabled){
+			switchToTimerMood();
+			sound.playResetClick();
+			Toast.makeText(getApplicationContext(),"Timer restarted",Toast.LENGTH_SHORT).show();
+		}
 	}
 
+	//Trace the volume buttons actions
+	@Override
+	public boolean dispatchKeyEvent(KeyEvent event) {
+		int action = event.getAction();
+		int keyCode = event.getKeyCode();
 
-	//Method to save the last CheckBox status
-	private void saveCheckBoxValue(String PrefName, boolean value, String name) {
-		//Saving the CheckBox value from the shared preferences
-		SharedPreferences myPrefs = getSharedPreferences(name, MODE_PRIVATE);
-		//Make editor object to write to the shared preferences
-		SharedPreferences.Editor editor = myPrefs.edit();
-		//Saving the CheckBox value under the name of "preResetValue"
-		editor.putBoolean(PrefName + name, value);
-		//Commit the action and save the value
-		editor.commit();
-	}
+		switch (keyCode) {
+			//When clicking the upper volume button
+			case KeyEvent.KEYCODE_VOLUME_UP:
+				if (action == KeyEvent.ACTION_UP && !isTimerEnabled) {
+					countUp();
+				}
+				return true;
 
-	//Method to get the last CheckBox status before reset
-	private boolean getCheckBoxValue(String PrefName, String name) {
-		//Retrieving the CheckBox value from the shared preferences
-		SharedPreferences myPrefs = getSharedPreferences(name, MODE_PRIVATE);
-		boolean CheckBoxstatus = myPrefs.getBoolean(PrefName + name, false);
-		return CheckBoxstatus;
+			//When clicking the down volume button
+			case KeyEvent.KEYCODE_VOLUME_DOWN:
+				if (action == KeyEvent.ACTION_DOWN && !isTimerEnabled) {
+					countDown();
+				}
+				return true;
+
+			default:
+				return super.dispatchKeyEvent(event);//Releasing volume buttons
+		}
 	}
 
 	@Override
@@ -479,11 +444,15 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 
 		if(!isTimerEnabled){
 			//Retrieving the count value from the getCounterValue() method and convert it to string
-			String toString = String.valueOf(getCounterValue());
+			String toString = String.valueOf(storage.getCounterValue());
 			TextView countView = findViewById(R.id.text_count);
 			countView.setText(toString);
 		} else {
             Toast.makeText(getApplicationContext(),"Paused",Toast.LENGTH_SHORT).show();
+        }
+
+		if(isProximityEnabled){
+            sensorManager.registerListener(this, proximitySensor, SensorManager.SENSOR_DELAY_NORMAL);
         }
 	}
 
@@ -495,5 +464,40 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
             timerHandler.removeCallbacks(runnable);
             isTimerRunning=false;
         }
+        if(isProximityEnabled){
+            try{
+                sensorManager.unregisterListener(this);
+            }
+            catch (Exception e){}
+        }
+	}
+
+	@Override
+	public void onAccuracyChanged(Sensor sensor, int i) {
+
+	}
+	@Override
+	public boolean onDown(MotionEvent motionEvent) {
+		return false;
+	}
+	@Override
+	public void onShowPress(MotionEvent motionEvent) {
+
+	}
+	@Override
+	public boolean onDoubleTapEvent(MotionEvent motionEvent) {
+		return false;
+	}
+	@Override
+	public boolean onFling(MotionEvent motionEvent, MotionEvent motionEvent1, float v, float v1) {
+		return false;
+	}
+	@Override
+	public boolean onSingleTapConfirmed(MotionEvent motionEvent) {
+		return false;
+	}
+	@Override
+	public boolean onScroll(MotionEvent motionEvent, MotionEvent motionEvent1, float v, float v1) {
+		return false;
 	}
 }

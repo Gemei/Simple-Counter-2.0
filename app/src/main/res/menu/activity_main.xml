@@ -1,33 +1,44 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    tools:context="com.example.myapplication.MainActivity">
+    tools:context="com.example.myapplication.MainActivity"
+    android:background="?attr/backgroundColor">
 
     <item
         android:id="@+id/menu_settings"
         android:orderInCategory="100"
         android:title="@string/menu_settings"
-        app:showAsAction="never" />
+        app:showAsAction="never"
+        android:textColor="?attr/textColor"/>
     <item 
         android:id="@+id/menu_resetButton"
         android:orderInCategory="1"
-        android:title="@string/menu_reset"/>
+        android:title="@string/menu_reset"
+        android:textColor="?attr/textColor"/>
     <item 
         android:id="@+id/menu_lastValue"
         android:orderInCategory="2"
-        android:title="@string/menu_LValue"/>
+        android:title="@string/menu_LValue"
+        android:textColor="?attr/textColor"/>
     <group 
         android:checkableBehavior="all"
         android:orderInCategory="3">
         <item
             android:id="@+id/menu_switchToTimer"
-            android:title="@string/menu_switchToTimer"/>
+            android:title="@string/menu_switchToTimer"
+            android:textColor="?attr/textColor"/>
+        <item
+            android:id="@+id/menu_switchToProximity"
+            android:title="@string/menu_switchToProximity"
+            android:textColor="?attr/textColor"/>
         <item
 	        android:id="@+id/menu_stayAwake"
-	        android:title="@string/menu_sAwake"/>
+	        android:title="@string/menu_sAwake"
+            android:textColor="?attr/textColor"/>
         <item
             android:id="@+id/menu_darkMode"
-            android:title="@string/menu_darkMode"/>
+            android:title="@string/menu_darkMode"
+            android:textColor="?attr/textColor"/>
     </group>
 
 </menu>
