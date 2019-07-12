@@ -9,5 +9,5 @@
     <string name="menu_sAwake">Stay Awake</string>
     <string name="menu_darkMode">Dark Mode</string>
     <string name="menu_switchToTimer">Switch to timer</string>
-    <string name="menu_switchToProximity">Switch to proximity</string>
+    <string name="menu_switchToLightSensor">Switch to light sensor</string>
 </resources>

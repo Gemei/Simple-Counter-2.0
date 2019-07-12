@@ -28,8 +28,8 @@
             android:title="@string/menu_switchToTimer"
             android:textColor="?attr/textColor"/>
         <item
-            android:id="@+id/menu_switchToProximity"
-            android:title="@string/menu_switchToProximity"
+            android:id="@+id/menu_switchToLightSensor"
+            android:title="@string/menu_switchToLightSensor"
             android:textColor="?attr/textColor"/>
         <item
 	        android:id="@+id/menu_stayAwake"

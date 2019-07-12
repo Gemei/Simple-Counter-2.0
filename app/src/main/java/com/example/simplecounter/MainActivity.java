@@ -30,13 +30,13 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 
     GestureDetector gestureDetector;
 
-	private boolean isTimerEnabled, isTimerRunning, isProximityEnabled;
+	private boolean isTimerEnabled, isTimerRunning, islightEnabled;
 	private long MillisecondTime, StartTime, TimeBuff, UpdateTime = 0L ;
 	private Handler timerHandler;
 	private int Seconds, Minutes, MilliSeconds ;
 
 	private SensorManager sensorManager;
-	private Sensor proximitySensor;
+	private Sensor lightSensor;
 
 	private Storage storage;
 	private Sound sound;
@@ -73,8 +73,8 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 	public boolean onPrepareOptionsMenu(Menu menu) {
 		menu.findItem(R.id.menu_stayAwake).setChecked(storage.getCheckBoxValue("screenLockPrefName","screenLock"));
 		menu.findItem(R.id.menu_darkMode).setChecked(storage.getCheckBoxValue("darkMoodPrefName","darkMode"));
-		if(!isProximityEnabled){
-			menu.findItem(R.id.menu_switchToProximity).setChecked(false);
+		if(!islightEnabled){
+			menu.findItem(R.id.menu_switchToLightSensor).setChecked(false);
 		}
 		if(!isTimerEnabled){
 			menu.findItem(R.id.menu_switchToTimer).setChecked(false);
@@ -117,7 +117,7 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 					switchToTimerMood();
 				}
 				return true;
-			case R.id.menu_switchToProximity:
+			case R.id.menu_switchToLightSensor:
 				//Screen Wake Lock CheckBox
 				if (item.isChecked()) {
 					item.setChecked(false);
@@ -125,7 +125,7 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 
 				} else {
 					item.setChecked(true);
-					switchToProximityMood();
+					switchToLightMood();
 				}
 				return true;
 			case R.id.menu_stayAwake:
@@ -274,7 +274,7 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 	}
 
 	private void switchToCounterMood(){
-		turnOffProximity();
+		turnOfflight();
 		turnOffTimer();
 		TextView counter = findViewById(R.id.text_count);
 		counter.setText(String.valueOf(storage.getCounterValue()));
@@ -282,7 +282,7 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 
 	//Switch to clock timer mood
 	private void switchToTimerMood(){
-		turnOffProximity();
+		turnOfflight();
 
 		TextView timer = findViewById(R.id.text_count);
 
@@ -299,17 +299,17 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 		isTimerEnabled=true;
 	}
 
-	private void switchToProximityMood(){
+	private void switchToLightMood(){
 		turnOffTimer();
 
 		sensorManager = (SensorManager) getSystemService(this.SENSOR_SERVICE);
-		proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
-		sensorManager.registerListener(this, proximitySensor, SensorManager.SENSOR_DELAY_NORMAL);
+		lightSensor = sensorManager.getDefaultSensor(Sensor.TYPE_LIGHT);
+		sensorManager.registerListener(this, lightSensor, SensorManager.SENSOR_DELAY_NORMAL);
 
         TextView counter = findViewById(R.id.text_count);
         counter.setText(String.valueOf(storage.getCounterValue()));
 
-		isProximityEnabled = true;
+		islightEnabled = true;
 	}
 
 	private void turnOffTimer(){
@@ -317,12 +317,12 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 		isTimerEnabled=false;
 	}
 
-	private void turnOffProximity(){
+	private void turnOfflight(){
 
-		if(isProximityEnabled){
+		if(islightEnabled){
 			sensorManager.unregisterListener(this);
 		}
-		isProximityEnabled=false;
+		islightEnabled=false;
 	}
 
 	public Runnable runnable = new Runnable() {
@@ -362,16 +362,9 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
 
 	@Override
 	public void onSensorChanged(SensorEvent sensorEvent) {
-		int proximityThreshold = 0;
-		if (sensorEvent.values[0] >= 500) {
-			proximityThreshold = 16;
-		} else if (sensorEvent.values[0] >= 95) {
-			proximityThreshold = 11;
-		} else if (sensorEvent.values[0] <= 10) {
-			proximityThreshold = 3;
-		}
-		if (sensorEvent.values[0] <= proximityThreshold) {
-			countUp();
+		double lightThreshold = 0.5;
+		if (sensorEvent.values[0] <= lightThreshold) {
+		    countUp();
 		}
 	}
 
@@ -451,8 +444,8 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
             Toast.makeText(getApplicationContext(),"Paused",Toast.LENGTH_SHORT).show();
         }
 
-		if(isProximityEnabled){
-            sensorManager.registerListener(this, proximitySensor, SensorManager.SENSOR_DELAY_NORMAL);
+		if(islightEnabled){
+            sensorManager.registerListener(this, lightSensor, SensorManager.SENSOR_DELAY_NORMAL);
         }
 	}
 
@@ -464,7 +457,7 @@ public class MainActivity extends AppCompatActivity implements GestureDetector.O
             timerHandler.removeCallbacks(runnable);
             isTimerRunning=false;
         }
-        if(isProximityEnabled){
+        if(islightEnabled){
             try{
                 sensorManager.unregisterListener(this);
             }
